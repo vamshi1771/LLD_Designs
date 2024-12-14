@@ -1,0 +1,179 @@
+import java.util.*;
+
+// User class to represent a user
+class User {
+    private final String userId;
+    private final String name;
+    private final String email;
+    private final String mobileNumber;
+
+    public User(String userId, String name, String email, String mobileNumber) {
+        this.userId = userId;
+        this.name = name;
+        this.email = email;
+        this.mobileNumber = mobileNumber;
+    }
+
+    public String getUserId() {
+        return userId;
+    }
+}
+
+// Expense sharing strategies
+interface ExpenseSplitStrategy {
+    void splitExpense(String paidBy, double amount, List<String> involvedUsers, List<Double> values, Map<String, Map<String, Double>> balances);
+}
+
+class EqualSplitStrategy implements ExpenseSplitStrategy {
+    @Override
+    public void splitExpense(String paidBy, double amount, List<String> involvedUsers, List<Double> values, Map<String, Map<String, Double>> balances) {
+        int numUsers = involvedUsers.size();
+        double splitAmount = Math.round((amount / numUsers) * 100.0) / 100.0;
+        double remainder = Math.round((amount - (splitAmount * (numUsers - 1))) * 100.0) / 100.0;
+
+        for (int i = 0; i < involvedUsers.size(); i++) {
+            String user = involvedUsers.get(i);
+            double share = (i == 0) ? remainder : splitAmount;
+            updateBalances(paidBy, user, share, balances);
+        }
+    }
+}
+
+class ExactSplitStrategy implements ExpenseSplitStrategy {
+    @Override
+    public void splitExpense(String paidBy, double amount, List<String> involvedUsers, List<Double> values, Map<String, Map<String, Double>> balances) {
+        double totalShares = values.stream().mapToDouble(Double::doubleValue).sum();
+        if (Math.round(totalShares * 100.0) / 100.0 != Math.round(amount * 100.0) / 100.0) {
+            throw new IllegalArgumentException("Exact shares do not match the total amount.");
+        }
+
+        for (int i = 0; i < involvedUsers.size(); i++) {
+            updateBalances(paidBy, involvedUsers.get(i), values.get(i), balances);
+        }
+    }
+}
+
+class PercentSplitStrategy implements ExpenseSplitStrategy {
+    @Override
+    public void splitExpense(String paidBy, double amount, List<String> involvedUsers, List<Double> values, Map<String, Map<String, Double>> balances) {
+        double totalPercent = values.stream().mapToDouble(Double::doubleValue).sum();
+        if (Math.round(totalPercent) != 100) {
+            throw new IllegalArgumentException("Total percentage does not equal 100.");
+        }
+
+        for (int i = 0; i < involvedUsers.size(); i++) {
+            double share = Math.round((amount * values.get(i) / 100) * 100.0) / 100.0;
+            updateBalances(paidBy, involvedUsers.get(i), share, balances);
+        }
+    }
+}
+
+// Factory for ExpenseSplitStrategy
+class ExpenseSplitStrategyFactory {
+    public static ExpenseSplitStrategy getStrategy(String type) {
+        switch (type.toUpperCase()) {
+            case "EQUAL":
+                return new EqualSplitStrategy();
+            case "EXACT":
+                return new ExactSplitStrategy();
+            case "PERCENT":
+                return new PercentSplitStrategy();
+            default:
+                throw new IllegalArgumentException("Invalid split type");
+        }
+    }
+}
+
+// Expense Manager using Singleton Pattern
+class ExpenseManager {
+    private static ExpenseManager instance;
+    private final Map<String, User> users;
+    private final Map<String, Map<String, Double>> balances;
+
+    private ExpenseManager() {
+        this.users = new HashMap<>();
+        this.balances = new HashMap<>();
+    }
+
+    public static ExpenseManager getInstance() {
+        if (instance == null) {
+            instance = new ExpenseManager();
+        }
+        return instance;
+    }
+
+    public void addUser(String userId, String name, String email, String mobileNumber) {
+        users.put(userId, new User(userId, name, email, mobileNumber));
+        balances.putIfAbsent(userId, new HashMap<>());
+    }
+
+    public void addExpense(String paidBy, double amount, List<String> involvedUsers, String type, List<Double> values) {
+        ExpenseSplitStrategy strategy = ExpenseSplitStrategyFactory.getStrategy(type);
+        strategy.splitExpense(paidBy, amount, involvedUsers, values, balances);
+    }
+
+    public void showBalances() {
+        boolean noBalances = true;
+        for (Map.Entry<String, Map<String, Double>> entry : balances.entrySet()) {
+            String userId = entry.getKey();
+            for (Map.Entry<String, Double> balance : entry.getValue().entrySet()) {
+                if (balance.getValue() != 0) {
+                    noBalances = false;
+                    System.out.printf("%s owes %s: %.2f\n", userId, balance.getKey(), balance.getValue());
+                }
+            }
+        }
+        if (noBalances) {
+            System.out.println("No balances");
+        }
+    }
+
+    public void showBalance(String userId) {
+        Map<String, Double> userBalances = balances.get(userId);
+        boolean noBalances = true;
+        for (Map.Entry<String, Double> balance : userBalances.entrySet()) {
+            if (balance.getValue() != 0) {
+                noBalances = false;
+                System.out.printf("%s owes %s: %.2f\n", userId, balance.getKey(), balance.getValue());
+            }
+        }
+        for (Map.Entry<String, Map<String, Double>> entry : balances.entrySet()) {
+            if (entry.getValue().containsKey(userId) && entry.getValue().get(userId) != 0) {
+                noBalances = false;
+                System.out.printf("%s owes %s: %.2f\n", entry.getKey(), userId, entry.getValue().get(userId));
+            }
+        }
+        if (noBalances) {
+            System.out.println("No balances");
+        }
+    }
+
+    private void updateBalances(String paidBy, String user, double amount, Map<String, Map<String, Double>> balances) {
+        if (!paidBy.equals(user)) {
+            balances.get(paidBy).put(user, balances.get(paidBy).getOrDefault(user, 0.0) + amount);
+            balances.get(user).put(paidBy, balances.get(user).getOrDefault(paidBy, 0.0) - amount);
+        }
+    }
+}
+
+// Main class to test the application
+public class ExpenseSharingApplication {
+    public static void main(String[] args) {
+        ExpenseManager expenseManager = ExpenseManager.getInstance();
+
+        expenseManager.addUser("U1", "Alice", "alice@example.com", "1234567890");
+        expenseManager.addUser("U2", "Bob", "bob@example.com", "0987654321");
+        expenseManager.addUser("U3", "Charlie", "charlie@example.com", "1122334455");
+
+        expenseManager.addExpense("U1", 1000, Arrays.asList("U1", "U2", "U3"), "EQUAL", null);
+        expenseManager.showBalances();
+
+        expenseManager.addExpense("U2", 2000, Arrays.asList("U1", "U2"), "EXACT", Arrays.asList(500.0, 1500.0));
+        expenseManager.showBalances();
+
+        expenseManager.addExpense("U3", 1200, Arrays.asList("U1", "U2", "U3"), "PERCENT", Arrays.asList(40.0, 40.0, 20.0));
+        expenseManager.showBalances();
+
+        expenseManager.showBalance("U1");
+    }
+}
