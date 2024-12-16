@@ -25,8 +25,6 @@ public class ExpensesManager {
         }
         return expensesManager;
     }
-
-//    "vamshi", "vamshi@email.com","U1","1234567890")
     public void addUsers(String name, String userId, String email, String phoneNumber){
         usersMap.put(userId, new Users(name,email,userId,phoneNumber));
         balances.putIfAbsent(userId, new HashMap<>());
@@ -38,6 +36,10 @@ public class ExpensesManager {
     }
 
     public void updateBalances(String paidBy, double amount, String user){
-
+        if(!paidBy.equals(user))
+        {
+            balances.get(paidBy).put(user, balances.get(paidBy).getOrDefault(user, 0.0) + amount);
+            balances.get(user).put(paidBy, balances.get(user).getOrDefault(paidBy, 0.0) - amount);
+        }
     }
 }
