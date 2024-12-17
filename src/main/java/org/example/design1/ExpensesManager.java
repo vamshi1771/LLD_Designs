@@ -42,4 +42,23 @@ public class ExpensesManager {
             balances.get(user).put(paidBy, balances.get(user).getOrDefault(paidBy, 0.0) - amount);
         }
     }
+
+    void showBalances(){
+        for(Map.Entry<String,Map<String,Double>> entry : balances.entrySet()){
+            String user1 = entry.getKey();
+            for(Map.Entry<String,Double> entry1 : entry.getValue().entrySet()){
+                Double balance = entry1.getValue();
+                if(balance > 0){
+                    System.out.println(entry1.getKey() + "owes" + balance + " to" + user1);
+                }
+            }
+        }
+    }
+    void showBalances(String userId){
+        for(Map.Entry<String,Double> entry : balances.get(userId).entrySet()){
+            if(entry.getValue() > 0){
+                System.out.println(entry.getKey() + "owes" + entry.getValue() + " to" + userId);
+            }
+        }
+    }
 }
